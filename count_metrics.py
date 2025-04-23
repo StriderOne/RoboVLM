@@ -16,6 +16,11 @@ def read_seeds(seeds_filename):
         return seeds
 
 
+def write_log(log_filename, log_message):
+    with open(log_filename, "w") as log_file:
+        log_file.write(log_message)
+
+
 def generate_seeds(seeds_count):
     seeds = [i for i in range(seeds_count)]
     return seeds
@@ -43,34 +48,47 @@ def display_images(images, save_path=None):
         plt.close(fig)
 
 
-if len(sys.argv) >= 3 and int(sys.argv[1]) < len(TASKS):
-    task_name = TASKS[int(sys.argv[1])]
-    iterations = int(sys.argv[2])
+if len(sys.argv) >= 2:
+    iterations = int(sys.argv[1])
 else:
-    sys.stderr.write('Wrong task number\n')
+    sys.stderr.write('No iterations count\n')
     sys.exit()
 
-env = simpler_env.make(task_name)
+for task_name in TASKS:
+    env = simpler_env.make(task_name)
 
-seeds = generate_seeds(iterations)
+    seeds = generate_seeds(iterations)
 
-successes = []
+    successes = []
 
-for i in range(iterations):
-    obs, reset_info = env.reset(seed=seeds[i])
-    instruction = env.get_language_instruction()
-    frames = []
-    done, truncated = False, False
-    while not (done or truncated):
-        image = get_image_from_maniskill2_obs_dict(env, obs)
-        action = env.action_space.sample()
-        obs, reward, done, truncated, info = env.step(action)
-        frames.append(image)
-    successes.append(done)
-    #display_images(frames, f'./{task_name} {time.time()}.{EXTENSION}')
+    for i in range(iterations):
+        print(f'Starting iteration: {i}')
+        obs, reset_info = env.reset(seed=seeds[i])
+        instruction = env.get_language_instruction()
+        frames = []
+        done, truncated = False, False
+        while not (done or truncated):
+            image = get_image_from_maniskill2_obs_dict(env, obs)
+            
+            import requests
+            import json_numpy
+            json_numpy.patch()
+            import numpy as np
+            
+            action = requests.post(
+                "http://0.0.0.0:8000/act",
+                json={"image": image, "instruction": instruction, "unnorm_key": "bridge_orig"}
+            ).json()
+            action = np.array(action)
 
-successes_count = 0
-for success in successes:
-    successes_count += success
-success_rate = successes_count / iterations * 100
-print(f'Success rate: {success_rate}%')
+            obs, reward, done, truncated, info = env.step(action)
+            frames.append(image)
+        successes.append(done)
+        #display_images(frames, f'./{task_name} {time.time()}.{EXTENSION}')
+
+    successes_count = 0
+    for success in successes:
+        successes_count += success
+    success_rate = successes_count / iterations * 100
+    print(f'{task_name} success rate: {success_rate}%')
+    write_log(f'{task_name} {time.time()}.log', f'{task_name} success rate: {success_rate}%')
