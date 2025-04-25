@@ -6,7 +6,7 @@ import time
 
 import json
 
-TASKS = ["widowx_carrot_on_plate"]
+TASKS = ["widowx_carrot_on_plate", "widowx_put_eggplant_in_basket", "widowx_stack_cube"]
 
 EXTENSION = 'gif'
 
@@ -93,13 +93,9 @@ for task_name in TASKS:
                 json={"image": image, "instruction": instruction, "unnorm_key": "Simpler"}
             ).json()
             action = np.concatenate([action["world_vector"], action["rot_axangle"], action["gripper"]])
-#            print()
-#            print(action)
             grep = action[-1]
             action = np.array(action) * 0.8
-            action[-2] *= -1
             action[-1] = grep
-#            print(action)
             action_log[task_name][i]['actions'][j] = list(action)
 
             obs, reward, done, truncated, info = env.step(action)
