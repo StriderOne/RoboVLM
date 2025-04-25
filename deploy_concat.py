@@ -58,7 +58,7 @@ SYSTEM_PROMPT = (
 
 def get_openvla_prompt(instruction: str, openvla_path: Union[str, Path]) -> str:
     if "v01" in openvla_path:
-        return f"{SYSTEM_PROMPT} USER: What action should the robot take to {instruction.lower()}? ASSISTANT:"
+        return f"{SYSTEM_PROMPT} USER: What action should the robot take to {instruction.lower()}? You are provided with 4 horizontaly concated images of the same size, where first is a current state and next three are previous steps. ASSISTANT:"
     else:
         return f"In: What action should the robot take to {instruction.lower()}?\nOut:"
 
@@ -102,7 +102,6 @@ class OpenVLAServer:
 
             # Run VLA Inference
             prompt = get_openvla_prompt(instruction, self.openvla_path)
-
             inputs = self.processor(prompt, Image.fromarray(image).convert("RGB")).to(self.device, dtype=torch.bfloat16)
             raw_actions = self.vla.predict_action(**inputs, unnorm_key=unnorm_key, do_sample=False)
             

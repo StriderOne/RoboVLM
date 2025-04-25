@@ -61,6 +61,13 @@ def get_openvla_prompt(instruction: str, openvla_path: Union[str, Path]) -> str:
         return f"{SYSTEM_PROMPT} USER: What action should the robot take to {instruction.lower()}? ASSISTANT:"
     else:
         return f"In: What action should the robot take to {instruction.lower()}?\nOut:"
+    
+
+def get_openvla_prompt_for_previous(instruction: str, openvla_path: Union[str, Path], steps: int) -> str:
+    if "v01" in openvla_path:
+        return f"{SYSTEM_PROMPT} USER: This is an image from {steps} steps back. Use it and other images to determine what action should the robot take to {instruction.lower()}? ASSISTANT:"
+    else:
+        return f"In: This is an image from {steps} steps back. Use it and other images to determine what action should the robot take to {instruction.lower()}?\nOut:"
 
 
 # === Server Interface ===
@@ -97,13 +104,20 @@ class OpenVLAServer:
                 payload = json.loads(payload["encoded"])
 
             # Parse payload components
-            image, instruction = payload["image"], payload["instruction"]
+            image1, image2, image3, image4, instruction = payload["image1"], payload["image2"], payload["image3"], payload["image4"], payload["instruction"]
             unnorm_key = payload.get("unnorm_key", None)
 
             # Run VLA Inference
-            prompt = get_openvla_prompt(instruction, self.openvla_path)
+            prompts = [get_openvla_prompt(instruction, self.openvla_path), 
+                           get_openvla_prompt_for_previous(instruction, self.openvla_path, 1),
+                           get_openvla_prompt_for_previous(instruction, self.openvla_path, 2),
+                           get_openvla_prompt_for_previous(instruction, self.openvla_path, 3)]
+            images = [Image.fromarray(image1).convert("RGB"),
+                            Image.fromarray(image2).convert("RGB"),
+                            Image.fromarray(image3).convert("RGB"),
+                            Image.fromarray(image4).convert("RGB")]
 
-            inputs = self.processor(prompt, Image.fromarray(image).convert("RGB")).to(self.device, dtype=torch.bfloat16)
+            inputs = self.processor(prompts, images, padding=True).to(self.device, dtype=torch.bfloat16)
             raw_actions = self.vla.predict_action(**inputs, unnorm_key=unnorm_key, do_sample=False)
             
             raw_action = {
@@ -149,8 +163,8 @@ class OpenVLAServer:
 @dataclass
 class DeployConfig:
     # fmt: off
-    #openvla_path: Union[str, Path] = "openvla/openvla-7b"               # HF Hub Path (or path to local run directory)
-    openvla_path: Union[str, Path] = "ZijianZhang/OpenVLA-7B-SFT-Simpler" # HF Hub Path (or path to local run directory)
+    openvla_path: Union[str, Path] = "openvla/openvla-7b"               # HF Hub Path (or path to local run directory)
+    #openvla_path: Union[str, Path] = "ZijianZhang/OpenVLA-7B-SFT-Simpler" # HF Hub Path (or path to local run directory)
 
     # Server Configuration
     host: str = "0.0.0.0"                                               # Host IP Address
